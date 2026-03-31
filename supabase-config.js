@@ -263,12 +263,34 @@ function showAuthError(message, type = 'error') {
 }
 
 async function handleLogout() {
-  const sb = getSupabase();
-  if (sb) {
-    await sb.auth.signOut();
+  try {
+    const sb = getSupabase();
+    if (sb) {
+      await sb.auth.signOut();
+      console.log('✅ Signed out from Supabase');
+    }
+  } catch (err) {
+    console.error('Logout error:', err);
   }
+
+  // Clear state
   currentUser = null;
+  state = {
+    habits: {},
+    tasks: [],
+    water: 0,
+    streak: 0,
+    lastDate: null,
+    completedToday: false,
+  };
+
+  // Hide logout button and app
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) logoutBtn.style.display = 'none';
+
+  // Show auth modal
   showAuthModal();
+  showToast('Logged out successfully', 'success', 'fa-sign-out-alt');
 }
 
 // ─── DATA OPERATIONS ────────────────────────────────────────────
@@ -281,20 +303,36 @@ async function loadUserData() {
   if (!sb) return;
 
   const today = new Date().toDateString();
+  console.log('📅 Loading data for date:', today);
 
   // Load habits for today
-  const { data: habitsData } = await sb
+  const { data: habitsData, error: habitsError } = await sb
     .from('habits')
     .select('*')
     .eq('user_id', currentUser.id)
     .eq('date', today);
 
+  if (habitsError) {
+    console.error('❌ Error loading habits:', habitsError);
+  } else {
+    console.log('📥 Raw habits data from Supabase:', habitsData);
+  }
+
+  // Initialize all habits as false, then override with saved ones
   state.habits = {};
-  habitsData?.forEach(h => {
-    state.habits[h.habit_id] = h.completed === true; // Ensure boolean
+  HABITS.forEach(h => {
+    state.habits[h.id] = false; // Default: incomplete
   });
 
-  console.log('✅ Loaded habits:', state.habits);
+  // Override with completed habits from database
+  if (habitsData && habitsData.length > 0) {
+    habitsData.forEach(h => {
+      state.habits[h.habit_id] = h.completed === true;
+      console.log(`  ✓ Habit "${h.habit_id}": ${h.completed}`);
+    });
+  }
+
+  console.log('✅ Final habits state:', state.habits);
 
   // Load tasks for today
   const { data: tasksData } = await sb
