@@ -36,9 +36,26 @@ waitForSupabase(() => {
     console.error('VITE_SUPABASE_ANON_KEY:', SUPABASE_ANON_KEY ? 'Set' : 'Missing');
   }
 
-  // Start auth after Supabase is ready
-  startDayFlowApp();
+  // Start auth only after app script functions are loaded.
+  waitForAppScripts();
 });
+
+function waitForAppScripts(attempts = 0) {
+  const requiredFns = ['init', 'showToast', 'renderDate'];
+  const appReady = requiredFns.every((fn) => typeof window[fn] === 'function');
+
+  if (appReady) {
+    startDayFlowApp();
+    return;
+  }
+
+  if (attempts >= 60) {
+    console.error('❌ App scripts failed to initialize in time.');
+    return;
+  }
+
+  setTimeout(() => waitForAppScripts(attempts + 1), 50);
+}
 
 // Global variables
 var supabase = null;
@@ -50,9 +67,27 @@ function getSupabase() {
   return window.supabase_client;
 }
 
+function getTodayKey() {
+  return new Date().toISOString().split('T')[0];
+}
+
+function getDateKeyOffset(offsetDays = 0) {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  return d.toISOString().split('T')[0];
+}
+
+function bindLogoutButton() {
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (!logoutBtn || logoutBtn.dataset.bound === 'true') return;
+  logoutBtn.addEventListener('click', handleLogout);
+  logoutBtn.dataset.bound = 'true';
+}
+
 // Start the app after Supabase is ready
 function startDayFlowApp() {
   console.log('🚀 Starting DayFlow App');
+  bindLogoutButton();
   initAuth();
   startAutoSync();
 }
@@ -124,7 +159,8 @@ function switchAuthTab(tab) {
   document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active'));
 
-  event.target.classList.add('active');
+  const selectedTab = document.querySelector(`.auth-tab[onclick=\"switchAuthTab('${tab}')\"]`);
+  if (selectedTab) selectedTab.classList.add('active');
   document.getElementById(tab + 'Form').classList.add('active');
 }
 
@@ -265,6 +301,9 @@ function showAuthError(message, type = 'error') {
 async function handleLogout() {
   console.log('🚪 Logout button clicked - starting logout process');
 
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) logoutBtn.disabled = true;
+
   try {
     const sb = getSupabase();
     if (!sb) {
@@ -282,6 +321,8 @@ async function handleLogout() {
     }
   } catch (err) {
     console.error('❌ Logout error:', err);
+  } finally {
+    if (logoutBtn) logoutBtn.disabled = false;
   }
 
   // The auth state listener will handle the rest
@@ -297,7 +338,7 @@ async function loadUserData() {
   const sb = getSupabase();
   if (!sb) return;
 
-  const today = new Date().toDateString();
+  const today = getTodayKey();
   console.log('📅 Loading data for date:', today);
 
   // Load habits for today
@@ -352,8 +393,10 @@ async function loadUserData() {
     .eq('user_id', currentUser.id)
     .eq('date', today);
 
+  const mergedTasksData = await carryForwardIncompleteTasks(today, tasksData || []);
+
   // Normalize task data - ensure all properties are correctly mapped
-  state.tasks = (tasksData || []).map(task => ({
+  state.tasks = (mergedTasksData || []).map(task => ({
     id: task.id,
     name: task.name,
     tag: task.tag,
@@ -376,6 +419,65 @@ async function loadUserData() {
   }
 }
 
+async function carryForwardIncompleteTasks(todayKey, todayTasksData) {
+  if (!currentUser) return todayTasksData;
+
+  const sb = getSupabase();
+  if (!sb) return todayTasksData;
+
+  const yesterdayKey = getDateKeyOffset(-1);
+  const existingKeys = new Set(
+    (todayTasksData || []).map((task) => `${(task.name || '').trim().toLowerCase()}::${task.tag || ''}`)
+  );
+
+  const { data: yesterdayOpenTasks, error: yesterdayError } = await sb
+    .from('tasks')
+    .select('name, tag, time')
+    .eq('user_id', currentUser.id)
+    .eq('date', yesterdayKey)
+    .eq('done', false);
+
+  if (yesterdayError) {
+    console.error('Error loading yesterday tasks:', yesterdayError);
+    return todayTasksData;
+  }
+
+  if (!yesterdayOpenTasks || yesterdayOpenTasks.length === 0) {
+    return todayTasksData;
+  }
+
+  const tasksToInsert = yesterdayOpenTasks
+    .filter((task) => {
+      const dedupeKey = `${(task.name || '').trim().toLowerCase()}::${task.tag || ''}`;
+      return !existingKeys.has(dedupeKey);
+    })
+    .map((task) => ({
+      user_id: currentUser.id,
+      date: todayKey,
+      name: task.name,
+      tag: task.tag || 'personal',
+      done: false,
+      time: task.time || new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+    }));
+
+  if (tasksToInsert.length === 0) {
+    return todayTasksData;
+  }
+
+  const { data: insertedTasks, error: insertError } = await sb
+    .from('tasks')
+    .insert(tasksToInsert)
+    .select('*');
+
+  if (insertError) {
+    console.error('Error carrying tasks to today:', insertError);
+    return todayTasksData;
+  }
+
+  showToast(`${tasksToInsert.length} unfinished task${tasksToInsert.length > 1 ? 's' : ''} moved from yesterday`, 'success', 'fa-rotate-right');
+  return [...todayTasksData, ...(insertedTasks || [])];
+}
+
 // Save daily stats
 async function saveDailyStatsToSupabase() {
   if (!currentUser) return;
@@ -383,19 +485,20 @@ async function saveDailyStatsToSupabase() {
   const sb = getSupabase();
   if (!sb) return;
 
-  const today = new Date().toDateString();
-  const done = Object.values(state.habits).filter(Boolean).length;
+  const today = getTodayKey();
+  const habitsDone = Object.values(state.habits).filter(Boolean).length;
+  const tasksDone = state.tasks.filter(t => t.done).length;
   const total = HABITS.length + state.tasks.length;
-  const completion = total === 0 ? 0 : Math.round((done / total) * 100);
+  const completion = total === 0 ? 0 : Math.round(((habitsDone + tasksDone) / total) * 100);
 
   const dailySnapshot = {
     user_id: currentUser.id,
     date: today,
     timestamp: new Date().getTime(),
     completion_percentage: completion,
-    habits_done: Object.values(state.habits).filter(Boolean).length,
+    habits_done: habitsDone,
     habits_total: HABITS.length,
-    tasks_done: state.tasks.filter(t => t.done).length,
+    tasks_done: tasksDone,
     tasks_total: state.tasks.length,
     water_intake: state.water,
     streak: state.streak,
@@ -416,7 +519,7 @@ async function updateHabitRemote(habitId, completed) {
   const sb = getSupabase();
   if (!sb) return;
 
-  const today = new Date().toDateString();
+  const today = getTodayKey();
 
   const { error } = await sb
     .from('habits')
@@ -443,7 +546,7 @@ async function addTaskRemote(taskData) {
     .from('tasks')
     .insert({
       user_id: currentUser.id,
-      date: new Date().toDateString(),
+      date: getTodayKey(),
       name: taskData.name,
       tag: taskData.tag,
       done: false
@@ -504,8 +607,8 @@ async function getStatsForDateRange(days = 7) {
   if (!sb) return [];
 
   const cutoffDate = new Date();
-  cutoffDate.setDate(cutoffDate.getDate() - days);
-  const cutoffString = cutoffDate.toDateString();
+  cutoffDate.setDate(cutoffDate.getDate() - (days - 1));
+  const cutoffString = cutoffDate.toISOString().split('T')[0];
 
   const { data } = await sb
     .from('daily_stats')

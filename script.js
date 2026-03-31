@@ -577,6 +577,22 @@ let currentStatsRange = 7;
 let charts = {};
 
 // ─── CHARTS ────────────────────────────────────────────────────
+function getChartColor(varName, fallback) {
+  const value = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+  return value || fallback;
+}
+
+function getChartTheme() {
+  return {
+    accent: getChartColor('--accent', '#c8f135'),
+    accent2: getChartColor('--accent2', '#f1a035'),
+    accent3: getChartColor('--accent3', '#35c8f1'),
+    text: getChartColor('--text', '#f0f0f0'),
+    muted: getChartColor('--muted', '#666666'),
+    grid: 'rgba(255, 255, 255, 0.05)',
+  };
+}
+
 function getDateRange(days) {
   const today = new Date();
   const dates = [];
@@ -589,9 +605,10 @@ function getDateRange(days) {
 }
 
 function getStatsForRange(days) {
+  const localStats = Array.isArray(state.dailyStats) ? state.dailyStats : [];
   const dateRange = getDateRange(days);
   return dateRange.map(date => {
-    return state.dailyStats.find(s => s.date === date) || {
+    return localStats.find(s => s.date === date) || {
       date: date,
       completion: 0,
       habitsDone: 0,
@@ -606,8 +623,10 @@ function getStatsForRange(days) {
 
 function switchStatsRange(days) {
   currentStatsRange = parseInt(days);
-  document.querySelectorAll('.stats-period-btn').forEach(btn => btn.classList.remove('active'));
-  event.target.classList.add('active');
+  document.querySelectorAll('.stats-period-btn').forEach((btn) => {
+    const isCurrent = btn.textContent.trim().startsWith(String(days));
+    btn.classList.toggle('active', isCurrent);
+  });
   updateAllCharts();
 }
 
@@ -621,6 +640,7 @@ async function updateAllCharts() {
     updateStreakChartWithData(dbStats);
     updateWaterChartWithData(dbStats);
     updateSummaryStatsWithData(dbStats);
+    updateHistoryTable(dbStats);
   } else {
     // Fallback to localStorage
     updateCompletionChart();
@@ -628,10 +648,51 @@ async function updateAllCharts() {
     updateStreakChart();
     updateWaterChart();
     updateSummaryStats();
+    updateHistoryTable([]);
   }
 }
 
+function updateHistoryTable(statsRows) {
+  const body = document.getElementById('historyTableBody');
+  const label = document.getElementById('historyRangeLabel');
+  if (!body || !label) return;
+
+  label.textContent = `Last ${Math.min(currentStatsRange, 10)} Days`;
+  const sortedRows = [...statsRows]
+    .sort((a, b) => (a.date > b.date ? -1 : 1))
+    .slice(0, 10);
+
+  if (sortedRows.length === 0) {
+    body.innerHTML = '<tr><td colspan="6" class="history-empty">No history yet</td></tr>';
+    return;
+  }
+
+  body.innerHTML = sortedRows.map((row) => {
+    const habitsDone = row.habits_done ?? row.habitsDone ?? 0;
+    const habitsTotal = row.habits_total ?? row.habitsTotal ?? HABITS.length;
+    const tasksDone = row.tasks_done ?? row.tasksDone ?? 0;
+    const tasksTotal = row.tasks_total ?? row.tasksTotal ?? 0;
+    const completion = row.completion_percentage ?? row.completionPercentage ?? row.completion ?? 0;
+    const waterIntake = row.water_intake ?? row.waterIntake ?? row.water ?? 0;
+    const isPerfect = row.is_perfect_day ?? row.isPerfectDay ?? row.isPerfect ?? false;
+    const rowClass = isPerfect ? 'history-row-perfect' : '';
+    const dateText = new Date(row.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+    return `
+      <tr class="${rowClass}">
+        <td>${dateText}</td>
+        <td>${completion}%</td>
+        <td>${habitsDone}/${habitsTotal}</td>
+        <td>${tasksDone}/${tasksTotal}</td>
+        <td>${(waterIntake / 1000).toFixed(1)}L</td>
+        <td>${isPerfect ? 'Yes' : 'No'}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
 function updateCompletionChart() {
+  const theme = getChartTheme();
   const data = getStatsForRange(currentStatsRange);
   const labels = data.map(s => new Date(s.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
   const completions = data.map(s => s.completion);
@@ -648,11 +709,11 @@ function updateCompletionChart() {
       datasets: [{
         label: 'Daily Completion %',
         data: completions,
-        borderColor: 'var(--accent)',
+        borderColor: theme.accent,
         backgroundColor: 'rgba(200, 241, 53, 0.1)',
         tension: 0.4,
         fill: true,
-        pointBackgroundColor: 'var(--accent)',
+        pointBackgroundColor: theme.accent,
         pointBorderColor: '#0d0d0d',
         pointRadius: 5,
         pointHoverRadius: 7,
@@ -666,16 +727,17 @@ function updateCompletionChart() {
         y: {
           beginAtZero: true,
           max: 100,
-          ticks: { color: 'var(--muted)', callback: v => v + '%' },
-          grid: { color: 'rgba(255, 255, 255, 0.05)' },
+          ticks: { color: theme.muted, callback: v => v + '%' },
+          grid: { color: theme.grid },
         },
-        x: { ticks: { color: 'var(--muted)' }, grid: { display: false } }
+        x: { ticks: { color: theme.muted }, grid: { display: false } }
       }
     }
   });
 }
 
 function updateTasksChart() {
+  const theme = getChartTheme();
   const data = getStatsForRange(currentStatsRange);
   const labels = data.map(s => new Date(s.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
   const habits = data.map(s => s.habitsDone);
@@ -694,13 +756,13 @@ function updateTasksChart() {
         {
           label: 'Habits',
           data: habits,
-          backgroundColor: 'var(--accent2)',
+          backgroundColor: theme.accent2,
           borderRadius: 4,
         },
         {
           label: 'Tasks',
           data: tasks,
-          backgroundColor: 'var(--accent3)',
+          backgroundColor: theme.accent3,
           borderRadius: 4,
         }
       ]
@@ -708,20 +770,21 @@ function updateTasksChart() {
     options: {
       responsive: true,
       maintainAspectRatio: true,
-      plugins: { legend: { labels: { color: 'var(--text)' } } },
+      plugins: { legend: { labels: { color: theme.text } } },
       scales: {
         y: {
           beginAtZero: true,
-          ticks: { color: 'var(--muted)' },
-          grid: { color: 'rgba(255, 255, 255, 0.05)' },
+          ticks: { color: theme.muted },
+          grid: { color: theme.grid },
         },
-        x: { ticks: { color: 'var(--muted)' }, grid: { display: false } }
+        x: { ticks: { color: theme.muted }, grid: { display: false } }
       }
     }
   });
 }
 
 function updateStreakChart() {
+  const theme = getChartTheme();
   const data = getStatsForRange(currentStatsRange);
   const labels = data.map(s => new Date(s.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
   const isPerfect = data.map(s => s.isPerfect ? 1 : 0);
@@ -754,7 +817,7 @@ function updateStreakChart() {
           beginAtZero: true,
           max: 1,
           ticks: { display: false },
-          grid: { color: 'rgba(255, 255, 255, 0.05)' },
+          grid: { color: theme.grid },
         }
       }
     }
@@ -762,6 +825,7 @@ function updateStreakChart() {
 }
 
 function updateWaterChart() {
+  const theme = getChartTheme();
   const data = getStatsForRange(currentStatsRange);
   const labels = data.map(s => new Date(s.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
   const water = data.map(s => (s.water / 1000).toFixed(1));
@@ -778,7 +842,7 @@ function updateWaterChart() {
       datasets: [{
         label: 'Liters',
         data: water,
-        backgroundColor: 'var(--accent3)',
+        backgroundColor: theme.accent3,
         borderRadius: 4,
       }]
     },
@@ -789,10 +853,10 @@ function updateWaterChart() {
       scales: {
         y: {
           beginAtZero: true,
-          ticks: { color: 'var(--muted)' },
-          grid: { color: 'rgba(255, 255, 255, 0.05)' },
+          ticks: { color: theme.muted },
+          grid: { color: theme.grid },
         },
-        x: { ticks: { color: 'var(--muted)' }, grid: { display: false } }
+        x: { ticks: { color: theme.muted }, grid: { display: false } }
       }
     }
   });
@@ -814,8 +878,9 @@ function updateSummaryStats() {
 
 // Chart functions that use passed data from IndexedDB
 function updateCompletionChartWithData(data) {
+  const theme = getChartTheme();
   const labels = data.map(s => new Date(s.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
-  const completions = data.map(s => s.completionPercentage);
+  const completions = data.map(s => s.completion_percentage ?? s.completionPercentage ?? 0);
 
   const ctx = document.getElementById('completionChart');
   if (!ctx) return;
@@ -829,11 +894,11 @@ function updateCompletionChartWithData(data) {
       datasets: [{
         label: 'Daily Completion %',
         data: completions,
-        borderColor: 'var(--accent)',
+        borderColor: theme.accent,
         backgroundColor: 'rgba(200, 241, 53, 0.1)',
         tension: 0.4,
         fill: true,
-        pointBackgroundColor: 'var(--accent)',
+        pointBackgroundColor: theme.accent,
         pointBorderColor: '#0d0d0d',
         pointRadius: 5,
         pointHoverRadius: 7,
@@ -847,19 +912,20 @@ function updateCompletionChartWithData(data) {
         y: {
           beginAtZero: true,
           max: 100,
-          ticks: { color: 'var(--muted)', callback: v => v + '%' },
-          grid: { color: 'rgba(255, 255, 255, 0.05)' },
+          ticks: { color: theme.muted, callback: v => v + '%' },
+          grid: { color: theme.grid },
         },
-        x: { ticks: { color: 'var(--muted)' }, grid: { display: false } }
+        x: { ticks: { color: theme.muted }, grid: { display: false } }
       }
     }
   });
 }
 
 function updateTasksChartWithData(data) {
+  const theme = getChartTheme();
   const labels = data.map(s => new Date(s.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
-  const habits = data.map(s => s.habitsDone);
-  const tasks = data.map(s => s.tasksDone);
+  const habits = data.map(s => s.habits_done ?? s.habitsDone ?? 0);
+  const tasks = data.map(s => s.tasks_done ?? s.tasksDone ?? 0);
 
   const ctx = document.getElementById('tasksChart');
   if (!ctx) return;
@@ -874,13 +940,13 @@ function updateTasksChartWithData(data) {
         {
           label: 'Habits',
           data: habits,
-          backgroundColor: 'var(--accent2)',
+          backgroundColor: theme.accent2,
           borderRadius: 4,
         },
         {
           label: 'Tasks',
           data: tasks,
-          backgroundColor: 'var(--accent3)',
+          backgroundColor: theme.accent3,
           borderRadius: 4,
         }
       ]
@@ -888,22 +954,23 @@ function updateTasksChartWithData(data) {
     options: {
       responsive: true,
       maintainAspectRatio: true,
-      plugins: { legend: { labels: { color: 'var(--text)' } } },
+      plugins: { legend: { labels: { color: theme.text } } },
       scales: {
         y: {
           beginAtZero: true,
-          ticks: { color: 'var(--muted)' },
-          grid: { color: 'rgba(255, 255, 255, 0.05)' },
+          ticks: { color: theme.muted },
+          grid: { color: theme.grid },
         },
-        x: { ticks: { color: 'var(--muted)' }, grid: { display: false } }
+        x: { ticks: { color: theme.muted }, grid: { display: false } }
       }
     }
   });
 }
 
 function updateStreakChartWithData(data) {
+  const theme = getChartTheme();
   const labels = data.map(s => new Date(s.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
-  const streaks = data.map(s => s.streak);
+  const streaks = data.map(s => s.streak ?? 0);
 
   const ctx = document.getElementById('streakChart');
   if (!ctx) return;
@@ -911,7 +978,7 @@ function updateStreakChartWithData(data) {
   if (charts.streak) charts.streak.destroy();
 
   charts.streak = new Chart(ctx, {
-    type: 'area',
+    type: 'line',
     data: {
       labels: labels,
       datasets: [{
@@ -933,18 +1000,19 @@ function updateStreakChartWithData(data) {
       scales: {
         y: {
           beginAtZero: true,
-          ticks: { color: 'var(--muted)' },
-          grid: { color: 'rgba(255, 255, 255, 0.05)' },
+          ticks: { color: theme.muted },
+          grid: { color: theme.grid },
         },
-        x: { ticks: { color: 'var(--muted)' }, grid: { display: false } }
+        x: { ticks: { color: theme.muted }, grid: { display: false } }
       }
     }
   });
 }
 
 function updateWaterChartWithData(data) {
+  const theme = getChartTheme();
   const labels = data.map(s => new Date(s.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
-  const water = data.map(s => (s.waterIntake / 1000).toFixed(1));
+  const water = data.map(s => ((s.water_intake ?? s.waterIntake ?? 0) / 1000).toFixed(1));
 
   const ctx = document.getElementById('waterChart');
   if (!ctx) return;
@@ -958,7 +1026,7 @@ function updateWaterChartWithData(data) {
       datasets: [{
         label: 'Water (Liters)',
         data: water,
-        backgroundColor: 'var(--accent3)',
+        backgroundColor: theme.accent3,
         borderRadius: 4,
       }]
     },
@@ -969,20 +1037,25 @@ function updateWaterChartWithData(data) {
       scales: {
         y: {
           beginAtZero: true,
-          ticks: { color: 'var(--muted)' },
-          grid: { color: 'rgba(255, 255, 255, 0.05)' },
+          ticks: { color: theme.muted },
+          grid: { color: theme.grid },
         },
-        x: { ticks: { color: 'var(--muted)' }, grid: { display: false } }
+        x: { ticks: { color: theme.muted }, grid: { display: false } }
       }
     }
   });
 }
 
 function updateSummaryStatsWithData(data) {
-  const avgCompletion = data.length > 0 ? Math.round(data.reduce((sum, s) => sum + s.completionPercentage, 0) / data.length) : 0;
-  const totalTasksDone = data.reduce((sum, s) => sum + s.tasksDone + s.habitsDone, 0);
-  const perfectDays = data.filter(s => s.isPerfectDay).length;
-  const totalWater = (data.reduce((sum, s) => sum + s.waterIntake, 0) / 1000).toFixed(1);
+  const avgCompletion = data.length > 0
+    ? Math.round(data.reduce((sum, s) => sum + (s.completion_percentage ?? s.completionPercentage ?? 0), 0) / data.length)
+    : 0;
+  const totalTasksDone = data.reduce(
+    (sum, s) => sum + (s.tasks_done ?? s.tasksDone ?? 0) + (s.habits_done ?? s.habitsDone ?? 0),
+    0
+  );
+  const perfectDays = data.filter(s => (s.is_perfect_day ?? s.isPerfectDay ?? false)).length;
+  const totalWater = (data.reduce((sum, s) => sum + (s.water_intake ?? s.waterIntake ?? 0), 0) / 1000).toFixed(1);
 
   document.getElementById('avgCompletion').textContent = avgCompletion + '%';
   document.getElementById('totalTasksDone').textContent = totalTasksDone;
@@ -1007,6 +1080,5 @@ document.addEventListener('keydown', (e) => {
 
 // ─── KICK OFF ────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  init();
   setupQuoteRefresh();
 });

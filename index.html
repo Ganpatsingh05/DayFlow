@@ -43,7 +43,7 @@
 <header>
   <div class="logo">Day<span>Flow</span></div>
   <div class="date-pill" id="datePill">Loading...</div>
-  <button class="logout-btn" id="logoutBtn" onclick="handleLogout()" style="display:none" title="Logout">
+  <button class="logout-btn" id="logoutBtn" style="display:none" title="Logout">
     <i class="fas fa-sign-out-alt"></i> <span class="logout-text">Logout</span>
   </button>
 </header>
@@ -242,6 +242,30 @@
     <div class="summary-card">
       <div class="summary-label">Total Water</div>
       <div class="summary-value" id="totalWater">0L</div>
+    </div>
+  </div>
+
+  <div class="history-panel">
+    <div class="history-head">
+      <h3><i class="fas fa-clock-rotate-left"></i> Recent History</h3>
+      <span id="historyRangeLabel">Last 10 Days</span>
+    </div>
+    <div class="history-table-wrap">
+      <table class="history-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Completion</th>
+            <th>Habits</th>
+            <th>Tasks</th>
+            <th>Water</th>
+            <th>Perfect</th>
+          </tr>
+        </thead>
+        <tbody id="historyTableBody">
+          <tr><td colspan="6" class="history-empty">No history yet</td></tr>
+        </tbody>
+      </table>
     </div>
   </div>
 </div>
