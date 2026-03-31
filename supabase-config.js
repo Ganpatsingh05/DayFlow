@@ -291,8 +291,10 @@ async function loadUserData() {
 
   state.habits = {};
   habitsData?.forEach(h => {
-    state.habits[h.habit_id] = h.completed;
+    state.habits[h.habit_id] = h.completed === true; // Ensure boolean
   });
+
+  console.log('✅ Loaded habits:', state.habits);
 
   // Load tasks for today
   const { data: tasksData } = await sb
