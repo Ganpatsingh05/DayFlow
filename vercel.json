@@ -2,7 +2,7 @@
   "redirects": [
     {
       "source": "/callback",
-      "destination": "/productivity_manager.html"
+      "destination": "/index.html"
     }
   ]
 }

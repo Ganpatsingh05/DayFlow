@@ -149,22 +149,11 @@
     </div>
 
     <!-- Music Player -->
-    <div class="widget">
-      <div class="section-title" style="margin-bottom:14px"><i class="fas fa-music"></i> Study Music</div>
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <input type="text" id="musicUrl" class="music-input" placeholder="Paste MP3/OGG/WAV URL..." maxlength="200" />
-        <button class="music-btn" id="playPauseBtn" onclick="toggleMusic()" title="Play/Pause">
-          <i class="fas fa-play"></i>
-        </button>
+    <div class="widget music-widget">
+      <div class="section-title" style="margin-bottom:14px"><i class="fab fa-spotify"></i> Study Music</div>
+      <div style="text-align: center; padding: 20px;">
+        <p style="color: var(--muted); margin-bottom: 12px;">Loading Spotify...</p>
       </div>
-      <div style="margin-top:10px">
-        <div class="music-info" id="musicInfo" style="font-size:0.75rem;color:var(--muted);text-align:center">No music loaded</div>
-        <div style="font-size:0.7rem;color:var(--muted);margin-top:6px;line-height:1.4;border-top:1px solid var(--border);padding-top:8px">
-          ✓ MP3, OGG, WAV links work | ✗ YouTube not supported<br/>
-          Use <a href="https://www.youtube.com/" target="_blank" style="color:var(--accent3);text-decoration:none">YouTube → MP3 converter</a>
-        </div>
-      </div>
-      <audio id="audioPlayer" style="width:100%;margin-top:10px"></audio>
     </div>
 
     <!-- Motivational quote -->
@@ -252,6 +241,7 @@
 
 <script src="env-loader.js"></script>
 <script src="supabase-config.js"></script>
+<script src="spotify-config.js"></script>
 <script src="script.js"></script>
 </body>
 </html>
