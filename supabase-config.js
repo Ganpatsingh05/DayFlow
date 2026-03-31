@@ -301,7 +301,15 @@ async function loadUserData() {
     .eq('user_id', currentUser.id)
     .eq('date', today);
 
-  state.tasks = tasksData || [];
+  // Normalize task data - ensure all properties are correctly mapped
+  state.tasks = (tasksData || []).map(task => ({
+    id: task.id,
+    name: task.name,
+    tag: task.tag,
+    done: task.done === true, // Ensure boolean value
+    time: task.time || new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+    created_at: task.created_at
+  }));
 
   // Load today's stats
   const { data: statsData } = await sb
@@ -375,12 +383,12 @@ async function updateHabitRemote(habitId, completed) {
 
 // Add task
 async function addTaskRemote(taskData) {
-  if (!currentUser) return;
+  if (!currentUser) return null;
 
   const sb = getSupabase();
-  if (!sb) return;
+  if (!sb) return null;
 
-  const { error } = await sb
+  const { data, error } = await sb
     .from('tasks')
     .insert({
       user_id: currentUser.id,
@@ -388,9 +396,16 @@ async function addTaskRemote(taskData) {
       name: taskData.name,
       tag: taskData.tag,
       done: false
-    });
+    })
+    .select();
 
-  if (error) console.error('Error adding task:', error);
+  if (error) {
+    console.error('Error adding task:', error);
+    return null;
+  }
+
+  // Return the inserted task with its ID
+  return data && data.length > 0 ? data[0] : null;
 }
 
 // Update task

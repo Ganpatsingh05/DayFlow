@@ -298,8 +298,16 @@ function addCustomTask() {
   updateScore();
   showToast('New task added!', 'success', 'fa-plus-circle');
 
-  // Sync to Supabase
-  addTaskRemote(task);
+  // Sync to Supabase and get the ID back
+  addTaskRemote(task).then(remoteTask => {
+    if (remoteTask && remoteTask.id) {
+      // Update the local task with the ID from Supabase
+      const lastTask = state.tasks[state.tasks.length - 1];
+      if (lastTask && lastTask.name === task.name) {
+        lastTask.id = remoteTask.id;
+      }
+    }
+  });
 }
 
 function deleteTask(e, i) {
