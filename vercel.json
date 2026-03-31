@@ -1,0 +1,16 @@
+{
+  "buildCommand": "",
+  "installCommand": "",
+  "framework": "static",
+  "public": true,
+  "env": [
+    "VITE_SUPABASE_URL",
+    "VITE_SUPABASE_ANON_KEY"
+  ],
+  "redirects": [
+    {
+      "source": "/callback",
+      "destination": "/productivity_manager.html"
+    }
+  ]
+}
