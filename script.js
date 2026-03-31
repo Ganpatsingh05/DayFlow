@@ -138,6 +138,7 @@ async function init() {
   renderCustomTasks();
   renderWater();
   renderQuote();
+  setupStatsControls();
   updateScore();
   saveDailyStatsToSupabase();
   setTimeout(updateAllCharts, 100);
@@ -622,17 +623,48 @@ function getStatsForRange(days) {
 }
 
 function switchStatsRange(days) {
-  currentStatsRange = parseInt(days);
+  currentStatsRange = parseInt(days, 10);
   document.querySelectorAll('.stats-period-btn').forEach((btn) => {
-    const isCurrent = btn.textContent.trim().startsWith(String(days));
+    const btnRange = btn.dataset.rangeDays || btn.textContent.trim().split(' ')[0];
+    const isCurrent = btnRange === String(days);
     btn.classList.toggle('active', isCurrent);
   });
   updateAllCharts();
 }
 
+function setupStatsControls() {
+  const rangeButtons = document.querySelectorAll('.stats-period-btn');
+  const exportButtons = document.querySelectorAll('.export-btn[data-export-days]');
+
+  rangeButtons.forEach((btn) => {
+    if (btn.dataset.bound === 'true') return;
+    btn.addEventListener('click', () => {
+      const days = btn.dataset.rangeDays || btn.textContent.trim().split(' ')[0];
+      switchStatsRange(days);
+    });
+    btn.dataset.bound = 'true';
+  });
+
+  exportButtons.forEach((btn) => {
+    if (btn.dataset.bound === 'true') return;
+    btn.addEventListener('click', () => {
+      const days = parseInt(btn.dataset.exportDays || '7', 10);
+      if (typeof window.exportStatsToCSV === 'function') {
+        window.exportStatsToCSV(days);
+      } else {
+        showToast('Export is not available right now', 'error', 'fa-circle-exclamation');
+      }
+    });
+    btn.dataset.bound = 'true';
+  });
+}
+
 async function updateAllCharts() {
   // Try to use IndexedDB data first, fallback to localStorage
-  const dbStats = await getStatsForDateRange(currentStatsRange);
+  const fetchStats = typeof window.getStatsForDateRange === 'function'
+    ? window.getStatsForDateRange
+    : null;
+  const dbStats = fetchStats ? await fetchStats(currentStatsRange) : [];
   if (dbStats.length > 0) {
     // Use IndexedDB data
     updateCompletionChartWithData(dbStats);
@@ -1080,5 +1112,6 @@ document.addEventListener('keydown', (e) => {
 
 // ─── KICK OFF ────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  setupStatsControls();
   setupQuoteRefresh();
 });

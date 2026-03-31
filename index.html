@@ -184,16 +184,16 @@
   <div class="stats-head">
     <h2><i class="fas fa-chart-line"></i> Weekly Performance</h2>
     <div class="stats-controls">
-      <button class="stats-period-btn active" onclick="switchStatsRange('7')">7 Days</button>
-      <button class="stats-period-btn" onclick="switchStatsRange('14')">14 Days</button>
-      <button class="stats-period-btn" onclick="switchStatsRange('30')">30 Days</button>
-      <button class="export-btn" onclick="exportStatsToCSV(7)" title="Export 7 days">
+      <button class="stats-period-btn active" data-range-days="7" type="button">7 Days</button>
+      <button class="stats-period-btn" data-range-days="14" type="button">14 Days</button>
+      <button class="stats-period-btn" data-range-days="30" type="button">30 Days</button>
+      <button class="export-btn" data-export-days="7" type="button" title="Export 7 days">
         <i class="fas fa-download"></i> 7D
       </button>
-      <button class="export-btn" onclick="exportStatsToCSV(30)" title="Export 30 days">
+      <button class="export-btn" data-export-days="30" type="button" title="Export 30 days">
         <i class="fas fa-download"></i> 30D
       </button>
-      <button class="export-btn" onclick="exportStatsToCSV(90)" title="Export 90 days">
+      <button class="export-btn" data-export-days="90" type="button" title="Export 90 days">
         <i class="fas fa-download"></i> 90D
       </button>
     </div>
