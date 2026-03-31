@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DayFlow — Productivity Manager</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- Auth Modal Container -->
+<div id="authContainer" class="auth-modal" style="display:flex;">
+  <div class="auth-box">
+    <h2>Welcome to DayFlow</h2>
+    <p>Sign in to sync your productivity across devices</p>
+
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="switchAuthTab('signin')">Sign In</button>
+      <button class="auth-tab" onclick="switchAuthTab('signup')">Sign Up</button>
+    </div>
+
+    <div id="signinForm" class="auth-form active">
+      <input type="email" id="signinEmail" placeholder="Email" class="auth-input" />
+      <input type="password" id="signinPassword" placeholder="Password" class="auth-input" />
+      <button onclick="handleSignIn(event)" class="auth-submit-btn">Sign In</button>
+    </div>
+
+    <div id="signupForm" class="auth-form">
+      <input type="email" id="signupEmail" placeholder="Email" class="auth-input" />
+      <input type="password" id="signupPassword" placeholder="Password (min 8 chars)" class="auth-input" />
+      <input type="password" id="signupConfirm" placeholder="Confirm Password" class="auth-input" />
+      <button onclick="handleSignUp(event)" class="auth-submit-btn">Sign Up</button>
+    </div>
+
+    <div id="authError" class="auth-error" style="display:none;"></div>
+  </div>
+</div>
+
+<header>
+  <div class="logo">Day<span>Flow</span></div>
+  <div class="date-pill" id="datePill">Loading...</div>
+  <button class="logout-btn" id="logoutBtn" onclick="handleLogout()" style="display:none" title="Logout">
+    <i class="fas fa-sign-out-alt"></i> <span class="logout-text">Logout</span>
+  </button>
+</header>
+
+<div class="score-section">
+  <div class="score-ring-wrap">
+    <svg viewBox="0 0 140 140">
+      <circle class="ring-bg" cx="70" cy="70" r="65"/>
+      <circle class="ring-fill" id="ringFill" cx="70" cy="70" r="65"/>
+    </svg>
+    <div class="score-center">
+      <div class="score-num" id="scoreNum">0%</div>
+      <div class="score-label">Done</div>
+    </div>
+  </div>
+  <div class="score-info">
+    <h1 id="greetingText">Good Morning,<br><em>Let's crush today!</em></h1>
+    <p id="scoreDesc">Start checking off tasks to track your productivity. Every completed task brings you closer to a perfect day.</p>
+    <div class="mood-badge" id="moodBadge" style="background:rgba(200,241,53,0.1);color:var(--accent)"><i class="fas fa-leaf"></i> Just Starting</div>
+  </div>
+</div>
+
+<div class="main">
+  <!-- Left: Tasks -->
+  <div>
+    <!-- Daily Habits -->
+    <div class="section-head">
+      <div class="section-title">Daily Habits</div>
+      <div class="section-count" id="habitCount">0 / 7</div>
+    </div>
+    <div class="tasks-block" id="habitsList"></div>
+
+    <div style="margin-top:28px"></div>
+
+    <!-- Custom Tasks -->
+    <div class="section-head">
+      <div class="section-title">My Tasks</div>
+      <div class="section-count" id="customCount">0 tasks</div>
+    </div>
+    <div class="tasks-block" id="customList">
+      <div class="empty-state" id="emptyState">No custom tasks yet. Add one below <i class="fas fa-arrow-down"></i></div>
+    </div>
+
+    <div class="add-task-row">
+      <input class="add-input" id="taskInput" placeholder="Add a new task..." maxlength="80" />
+      <select class="tag-select" id="tagSelect">
+        <option value="work"><i class="fas fa-briefcase"></i> Work</option>
+        <option value="health"><i class="fas fa-heartbeat"></i> Health</option>
+        <option value="personal"><i class="fas fa-star"></i> Personal</option>
+        <option value="habit"><i class="fas fa-sync"></i> Habit</option>
+      </select>
+      <button class="add-btn" onclick="addCustomTask()">+ Add</button>
+    </div>
+  </div>
+
+  <!-- Right: Sidebar -->
+  <div class="sidebar">
+
+    <!-- Stats -->
+    <div class="widget">
+      <div class="section-head" style="margin-bottom:14px">
+        <div class="section-title">Today's Stats</div>
+        <button class="reset-btn" onclick="resetDay()">Reset Day</button>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-val" id="statTotal" style="color:var(--accent3)">0</div>
+          <div class="stat-label">Total Tasks</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val" id="statDone" style="color:var(--accent)">0</div>
+          <div class="stat-label">Completed</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val" id="statHabits" style="color:var(--accent2)">0</div>
+          <div class="stat-label">Habits Done</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val" id="statStreak" style="color:#f135f5">0</div>
+          <div class="stat-label">Day Streak</div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="section-title" style="margin-bottom:10px">Overall Progress</div>
+      <div class="prog-bar-wrap">
+        <div class="prog-bar" id="progBar" style="width:0%"></div>
+      </div>
+      <div class="prog-label" id="progLabel">0 of 0 tasks complete</div>
+    </div>
+
+    <!-- Water tracker -->
+    <div class="widget">
+      <div class="section-title" style="margin-bottom:14px"><i class="fas fa-droplet"></i> Water Intake</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <div id="waterCups" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+      </div>
+      <div style="margin-top:10px;font-size:0.78rem;color:var(--muted)" id="waterLabel">0 / 3 litres</div>
+      <div class="prog-bar-wrap" style="margin-top:8px">
+        <div class="prog-bar" id="waterBar" style="width:0%;background:linear-gradient(90deg,var(--accent3),var(--accent))"></div>
+      </div>
+    </div>
+
+    <!-- Music Player -->
+    <div class="widget">
+      <div class="section-title" style="margin-bottom:14px"><i class="fas fa-music"></i> Study Music</div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <input type="text" id="musicUrl" class="music-input" placeholder="Paste MP3/OGG/WAV URL..." maxlength="200" />
+        <button class="music-btn" id="playPauseBtn" onclick="toggleMusic()" title="Play/Pause">
+          <i class="fas fa-play"></i>
+        </button>
+      </div>
+      <div style="margin-top:10px">
+        <div class="music-info" id="musicInfo" style="font-size:0.75rem;color:var(--muted);text-align:center">No music loaded</div>
+        <div style="font-size:0.7rem;color:var(--muted);margin-top:6px;line-height:1.4;border-top:1px solid var(--border);padding-top:8px">
+          ✓ MP3, OGG, WAV links work | ✗ YouTube not supported<br/>
+          Use <a href="https://www.youtube.com/" target="_blank" style="color:var(--accent3);text-decoration:none">YouTube → MP3 converter</a>
+        </div>
+      </div>
+      <audio id="audioPlayer" style="width:100%;margin-top:10px"></audio>
+    </div>
+
+    <!-- Motivational quote -->
+    <div class="widget">
+      <div class="section-head" style="margin-bottom:14px">
+        <div class="section-title"><i class="fas fa-wand-magic-sparkles"></i> Daily Spark</div>
+      </div>
+      <div id="quoteContainer">
+        <div class="quote-text" id="quoteText"></div>
+        <div class="quote-author" id="quoteAuthor"></div>
+        <div class="quote-meaning" id="quoteMeaning"></div>
+        <button class="quote-refresh-btn" id="quoteRefreshBtn"><i class="fas fa-rotate-right"></i> New Quote</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Stats Dashboard -->
+<div class="stats-dashboard">
+  <div class="stats-head">
+    <h2><i class="fas fa-chart-line"></i> Weekly Performance</h2>
+    <div class="stats-controls">
+      <button class="stats-period-btn active" onclick="switchStatsRange('7')">7 Days</button>
+      <button class="stats-period-btn" onclick="switchStatsRange('14')">14 Days</button>
+      <button class="stats-period-btn" onclick="switchStatsRange('30')">30 Days</button>
+      <button class="export-btn" onclick="exportStatsToCSV(7)" title="Export 7 days">
+        <i class="fas fa-download"></i> 7D
+      </button>
+      <button class="export-btn" onclick="exportStatsToCSV(30)" title="Export 30 days">
+        <i class="fas fa-download"></i> 30D
+      </button>
+      <button class="export-btn" onclick="exportStatsToCSV(90)" title="Export 90 days">
+        <i class="fas fa-download"></i> 90D
+      </button>
+    </div>
+  </div>
+
+  <div class="charts-grid">
+    <!-- Completion Rate Chart -->
+    <div class="chart-container">
+      <div class="chart-title"><i class="fas fa-percent"></i> Daily Completion Rate</div>
+      <canvas id="completionChart"></canvas>
+    </div>
+
+    <!-- Tasks Completed Chart -->
+    <div class="chart-container">
+      <div class="chart-title"><i class="fas fa-tasks"></i> Tasks vs Habits</div>
+      <canvas id="tasksChart"></canvas>
+    </div>
+
+    <!-- Streak Tracker -->
+    <div class="chart-container">
+      <div class="chart-title"><i class="fas fa-fire"></i> Perfect Days Streak</div>
+      <canvas id="streakChart"></canvas>
+    </div>
+
+    <!-- Water Intake Chart -->
+    <div class="chart-container">
+      <div class="chart-title"><i class="fas fa-droplet"></i> Water Intake (Liters)</div>
+      <canvas id="waterChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Summary Stats -->
+  <div class="summary-stats">
+    <div class="summary-card">
+      <div class="summary-label">Avg. Completion</div>
+      <div class="summary-value" id="avgCompletion">0%</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-label">Total Tasks Done</div>
+      <div class="summary-value" id="totalTasksDone">0</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-label">Perfect Days</div>
+      <div class="summary-value" id="perfectDays">0</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-label">Total Water</div>
+      <div class="summary-value" id="totalWater">0L</div>
+    </div>
+  </div>
+</div>
+
+<script src="env-loader.js"></script>
+<script src="supabase-config.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
