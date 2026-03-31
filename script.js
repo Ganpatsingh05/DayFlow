@@ -452,7 +452,7 @@ function setupQuoteRefresh() {
   }
 }
 
-// ─── MUSIC PLAYER ───────────────────────────────────────────────
+// ─── MUSIC PLAYER (Legacy - replaced by Spotify) ───────────────────────────────────────────────
 let isPlaying = false;
 
 function isYouTubeUrl(url) {
@@ -461,8 +461,14 @@ function isYouTubeUrl(url) {
 
 function toggleMusic() {
   const player = document.getElementById('audioPlayer');
-  const btn = document.getElementById('playPauseBtn');
   const input = document.getElementById('musicUrl');
+
+  if (!player || !input) {
+    console.log('Spotify player active - use Spotify controls');
+    return;
+  }
+
+  const btn = document.getElementById('playPauseBtn');
   const info = document.getElementById('musicInfo');
 
   if (!input.value.trim()) {
@@ -475,7 +481,7 @@ function toggleMusic() {
   // Check if YouTube URL
   if (isYouTubeUrl(url)) {
     showToast('YouTube links not supported. Use MP3 URLs or YouTube→MP3 converter', 'error', 'fa-exclamation-circle');
-    info.textContent = '❌ YouTube not supported';
+    if (info) info.textContent = '❌ YouTube not supported';
     return;
   }
 
@@ -486,17 +492,17 @@ function toggleMusic() {
     }
     player.play().catch(err => {
       showToast('Could not play. Ensure it\'s a direct audio URL (MP3, OGG, WAV)', 'error', 'fa-exclamation-circle');
-      info.textContent = '❌ Play failed';
+      if (info) info.textContent = '❌ Play failed';
       console.error('Audio play error:', err);
     });
     isPlaying = true;
-    btn.innerHTML = '<i class="fas fa-pause"></i>';
-    info.textContent = '▶️ Playing';
+    if (btn) btn.innerHTML = '<i class="fas fa-pause"></i>';
+    if (info) info.textContent = '▶️ Playing';
   } else {
     player.pause();
     isPlaying = false;
-    btn.innerHTML = '<i class="fas fa-play"></i>';
-    info.textContent = '⏸️ Paused';
+    if (btn) btn.innerHTML = '<i class="fas fa-play"></i>';
+    if (info) info.textContent = '⏸️ Paused';
   }
 }
 
@@ -505,21 +511,20 @@ function updateMusicUrl() {
   const input = document.getElementById('musicUrl');
   const btn = document.getElementById('playPauseBtn');
 
+  if (!player || !input || !btn) return;
+
   // Reset if URL changes
   if (player.src && input.value.trim() !== player.src) {
     player.pause();
     player.src = '';
     isPlaying = false;
     btn.innerHTML = '<i class="fas fa-play"></i>';
-    document.getElementById('musicInfo').textContent = '📝 URL updated';
+    document.getElementById('musicInfo').textContent = 'URL updated';
   }
 }
 
-// Listen for URL changes
-document.getElementById('musicUrl').addEventListener('change', updateMusicUrl);
-document.getElementById('musicUrl').addEventListener('paste', function() {
-  setTimeout(updateMusicUrl, 10);
-});
+// Listen for URL changes (old music player - now using Spotify)
+// Removed: document.getElementById('musicUrl').addEventListener(...)
 
 // Stop music on tab close
 window.addEventListener('beforeunload', () => {
@@ -982,7 +987,8 @@ document.addEventListener('keydown', (e) => {
   // Ctrl/Cmd + K to focus add task input
   if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
     e.preventDefault();
-    document.getElementById('taskInput').focus();
+    const taskInput = document.getElementById('taskInput');
+    if (taskInput) taskInput.focus();
   }
   // Ctrl/Cmd + Shift + R to reset day
   if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'R') {
@@ -992,5 +998,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 // ─── KICK OFF ────────────────────────────────────────────────────
-init();
-setupQuoteRefresh();
+document.addEventListener('DOMContentLoaded', () => {
+  init();
+  setupQuoteRefresh();
+});
