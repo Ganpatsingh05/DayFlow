@@ -263,34 +263,29 @@ function showAuthError(message, type = 'error') {
 }
 
 async function handleLogout() {
+  console.log('🚪 Logout button clicked - starting logout process');
+
   try {
     const sb = getSupabase();
-    if (sb) {
-      await sb.auth.signOut();
-      console.log('✅ Signed out from Supabase');
+    if (!sb) {
+      console.error('❌ Supabase client not available');
+      return;
+    }
+
+    console.log('🔐 Calling Supabase signOut()...');
+    const { error } = await sb.auth.signOut();
+
+    if (error) {
+      console.error('❌ Supabase signOut error:', error);
+    } else {
+      console.log('✅ Supabase signOut() successful');
     }
   } catch (err) {
-    console.error('Logout error:', err);
+    console.error('❌ Logout error:', err);
   }
 
-  // Clear state
-  currentUser = null;
-  state = {
-    habits: {},
-    tasks: [],
-    water: 0,
-    streak: 0,
-    lastDate: null,
-    completedToday: false,
-  };
-
-  // Hide logout button and app
-  const logoutBtn = document.getElementById('logoutBtn');
-  if (logoutBtn) logoutBtn.style.display = 'none';
-
-  // Show auth modal
-  showAuthModal();
-  showToast('Logged out successfully', 'success', 'fa-sign-out-alt');
+  // The auth state listener will handle the rest
+  console.log('🚪 Logout process completed');
 }
 
 // ─── DATA OPERATIONS ────────────────────────────────────────────
@@ -316,6 +311,19 @@ async function loadUserData() {
     console.error('❌ Error loading habits:', habitsError);
   } else {
     console.log('📥 Raw habits data from Supabase:', habitsData);
+    console.log('   Number of habits returned:', habitsData?.length || 0);
+
+    if (habitsData && habitsData.length > 0) {
+      habitsData.forEach(h => {
+        console.log(`   Habit:`, {
+          habit_id: h.habit_id,
+          completed: h.completed,
+          done: h.done,
+          is_completed: h.is_completed,
+          date: h.date
+        });
+      });
+    }
   }
 
   // Initialize all habits as false, then override with saved ones
@@ -327,12 +335,15 @@ async function loadUserData() {
   // Override with completed habits from database
   if (habitsData && habitsData.length > 0) {
     habitsData.forEach(h => {
-      state.habits[h.habit_id] = h.completed === true;
-      console.log(`  ✓ Habit "${h.habit_id}": ${h.completed}`);
+      // Support multiple column names (completed, done, is_completed)
+      const isCompleted = h.completed === true || h.done === true || h.is_completed === true;
+      state.habits[h.habit_id] = isCompleted;
+      console.log(`  ✓ Habit "${h.habit_id}" set to: ${isCompleted}`);
     });
   }
 
   console.log('✅ Final habits state:', state.habits);
+  console.log(`   Completed: ${Object.values(state.habits).filter(Boolean).length}/${HABITS.length}`);
 
   // Load tasks for today
   const { data: tasksData } = await sb
