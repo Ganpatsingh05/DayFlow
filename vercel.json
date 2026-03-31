@@ -2,15 +2,6 @@
   "buildCommand": "",
   "installCommand": "",
   "framework": "static",
-  "public": true,
-  "env": {
-    "VITE_SUPABASE_URL": {
-      "value": ""
-    },
-    "VITE_SUPABASE_ANON_KEY": {
-      "value": ""
-    }
-  },
   "redirects": [
     {
       "source": "/callback",
