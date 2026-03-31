@@ -28,25 +28,44 @@ function getSpotifyAuthUrl() {
 async function handleSpotifyCallback() {
   const params = new URLSearchParams(window.location.search);
   const code = params.get('code');
+  const error = params.get('error');
+
+  if (error) {
+    console.error('Spotify auth error:', error);
+    showToast('Spotify connection cancelled', 'error', 'fa-exclamation-circle');
+    setTimeout(() => window.location.href = '/', 2000);
+    return;
+  }
 
   if (!code) return;
 
   try {
-    // Exchange code for access token (via backend in production)
-    const response = await fetch('/api/spotify-token', {
+    console.log('🔄 Exchanging Spotify auth code for token...');
+
+    // Call Vercel serverless function to exchange code for token
+    const response = await fetch('/api/spotify-callback', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code })
     });
 
-    if (response.ok) {
-      const data = await response.json();
-      spotifyAccessToken = data.access_token;
-      localStorage.setItem('spotifyToken', spotifyAccessToken);
-      window.location.href = '/';
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Token exchange failed');
     }
+
+    const data = await response.json();
+    spotifyAccessToken = data.access_token;
+    localStorage.setItem('spotifyToken', spotifyAccessToken);
+    console.log('✅ Spotify token received!');
+
+    // Clean URL and show app
+    window.history.replaceState({}, document.title, '/');
+    location.reload();
   } catch (err) {
-    console.error('Spotify auth error:', err);
+    console.error('Spotify callback error:', err);
+    showToast('Failed to connect Spotify: ' + err.message, 'error', 'fa-exclamation-circle');
+    setTimeout(() => window.location.href = '/', 2000);
   }
 }
 
@@ -279,9 +298,13 @@ function spotifyLogout() {
 
 // Initialize on load
 document.addEventListener('DOMContentLoaded', () => {
-  if (window.location.pathname === '/callback') {
+  const code = new URLSearchParams(window.location.search).get('code');
+
+  if (code) {
+    // We have auth code - exchange it for token
     handleSpotifyCallback();
   } else {
+    // Normal app initialization
     initSpotifyAuth();
   }
 });
