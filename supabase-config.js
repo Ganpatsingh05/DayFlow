@@ -243,11 +243,16 @@ async function handleSignUp(event) {
 
   try {
     console.log('📝 Attempting sign up for:', email);
+    // Use a proper redirect URL - should match Supabase allowed redirect URLs
+    const redirectUrl = window.location.href.includes('localhost') 
+      ? `${window.location.origin}?tab=signin` 
+      : `${window.location.origin}?tab=signin`;
+    
     const { data, error } = await getSupabase().auth.signUp({
       email,
       password,
       options: {
-        emailRedirectTo: window.location.origin
+        emailRedirectTo: redirectUrl
       }
     });
 
