@@ -86,7 +86,7 @@ function bindLogoutButton() {
 
 // Start the app after Supabase is ready
 function startDayFlowApp() {
-  console.log('🚀 Starting DayFlow App');
+  console.log('Starting DayFlow App');
   bindLogoutButton();
   initAuth();
   startAutoSync();
