@@ -32,9 +32,17 @@ pipeline {
             }
         }
 
+        // stage('Health Check') {
+        //     steps {
+        //         sh 'curl http://localhost:8088'
+        //     }
+        // }
         stage('Health Check') {
             steps {
-                sh 'curl http://localhost:8088'
+                sh '''
+                sleep 10
+                curl http://host.docker.internal:8088
+                '''
             }
         }
     }
